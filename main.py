@@ -10,7 +10,6 @@ import pandas as pd
 import schedule
 from ics import Calendar, Event
 from ics.alarm import DisplayAlarm
-from ics.contentlines import ContentLine
 
 
 logging.basicConfig(
@@ -21,12 +20,11 @@ logger = logging.getLogger(__name__)
 
 
 class CalendarUpdater:
-    """Handles calendar updates from OneDrive Excel to ICS files via FTP."""
+    """Handles calendar updates from shareable spreadsheet to ICS files via FTP."""
 
     def __init__(self):
         """Initialize with environment variables."""
-        self.resid = os.getenv('ONEDRIVE_RESID')
-        self.authkey = os.getenv('ONEDRIVE_AUTHKEY')
+        self.spreadsheet_url = os.getenv('SPREADSHEET_URL')
 
         self.ftp_host = os.getenv('FTP_HOST')
         self.ftp_port = int(os.getenv('FTP_PORT', '21'))
@@ -38,9 +36,9 @@ class CalendarUpdater:
 
     def _validate_credentials(self):
         """Validate required environment variables."""
-        if not self.resid or not self.authkey:
+        if not self.spreadsheet_url:
             raise ValueError(
-                'OneDrive credentials not found in environment variables'
+                'Spreadsheet URL not found in environment variables'
             )
 
         if not all([self.ftp_host, self.ftp_username, self.ftp_password]):
@@ -48,19 +46,16 @@ class CalendarUpdater:
                 'FTP credentials not found in environment variables'
             )
 
-    def read_excel_from_onedrive(self):
-        """Read Excel file from OneDrive using direct access method."""
+    def read_spreadsheet(self):
+        """Read Spreadsheet file using public share link access method."""
         try:
-            url_excel = (
-                f'https://onedrive.live.com/download?'
-                f'resid={self.resid}&authkey={self.authkey}&em=2&app=Excel'
-            )
-            logger.info('Reading Excel file from OneDrive...')
+            url_excel = self.spreadsheet_url
+            logger.info('Reading spreadsheet file...')
             df = pd.read_excel(url_excel)
-            logger.info(f'Successfully read {len(df)} events from Excel')
+            logger.info(f'Successfully read {len(df)} events from File')
             return df
         except Exception as error:
-            logger.error(f'Error reading Excel file: {error}')
+            logger.error(f'Error reading spreadsheet file: {error}')
             return None
 
     def _create_calendar_event(self, row):
@@ -171,19 +166,8 @@ class CalendarUpdater:
     def _create_calendar(self, category):
         """Create calendar with proper metadata."""
         cal = Calendar()
-        cal.extra.append(
-            ContentLine(
-                name='X-WR-CALNAME',
-                value=f'Mahmoodia-{category.title()}'
-            )
-        )
-        cal.extra.append(
-            ContentLine(
-                name='REFRESH-INTERVAL',
-                params={'VALUE': ['DURATION']},
-                value='P1H'
-            )
-        )
+        cal.extra.append(f'X-WR-CALNAME:Mahmoodia-{category.title()}')
+        cal.extra.append('REFRESH-INTERVAL;VALUE=DURATION:P1H')
         return cal
 
     def _add_events_to_calendar(self, cal, calendar_events):
@@ -242,7 +226,7 @@ class CalendarUpdater:
         """Main function to update all calendars."""
         logger.info('Starting calendar update process...')
 
-        df = self.read_excel_from_onedrive()
+        df = self.read_spreadsheet()
         if df is None:
             logger.error('Failed to read Excel data, skipping update')
             return
