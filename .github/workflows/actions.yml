@@ -1,0 +1,36 @@
+name: run main.py
+
+on:
+  schedule:
+    - cron: "*/30 * * * *" # Run every 30 minutes
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run main.py
+        env:
+          INSTITUTION: ${{ secrets.INSTITUTION }} # Name of the institution
+          CALENDAR_CATEGORIES: ${{ secrets.CALENDAR_CATEGORIES }} # Comma-separated list of calendar categories
+          FTP_HOST: ${{ secrets.FTP_HOST }} # FTP server host
+          FTP_PORT: ${{ secrets.FTP_PORT }} # FTP server port (default is 21)
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }} # FTP username
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }} # FTP password
+          FTP_REMOTE_PATH: ${{ secrets.FTP_REMOTE_PATH }} # Remote path on the FTP server where files will be uploaded
+          SPREADSHEET_URL: ${{ secrets.SPREADSHEET_URL }}
+        run: python main.py
