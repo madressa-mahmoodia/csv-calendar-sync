@@ -7,7 +7,6 @@ import time
 from datetime import datetime, timedelta
 
 import pandas as pd
-import schedule
 from ics import Calendar, Event
 from ics.alarm import DisplayAlarm
 
@@ -24,6 +23,9 @@ class CalendarUpdater:
 
     def __init__(self):
         """Initialize with environment variables."""
+        self.institution = os.getenv('INSTITUTION', 'ExampleInstitution')
+        self.categories = os.getenv('CALENDAR_CATEGORIES', 'Events').split(',')
+
         self.spreadsheet_url = os.getenv('SPREADSHEET_URL')
 
         self.ftp_host = os.getenv('FTP_HOST')
@@ -49,9 +51,8 @@ class CalendarUpdater:
     def read_spreadsheet(self):
         """Read Spreadsheet file using public share link access method."""
         try:
-            url_excel = self.spreadsheet_url
             logger.info('Reading spreadsheet file...')
-            df = pd.read_excel(url_excel)
+            df = pd.read_csv(self.spreadsheet_url)
             logger.info(f'Successfully read {len(df)} events from File')
             return df
         except Exception as error:
@@ -138,9 +139,8 @@ class CalendarUpdater:
     def generate_ics_files(self, df):
         """Generate separate ICS files for each calendar category."""
         calendars = {}
-        calendar_categories = ['naazira', 'hifz', 'aalim']
 
-        for category in calendar_categories:
+        for category in self.categories:
             logger.info(f'Processing calendar: {category}')
             calendar_events = self._filter_events_by_category(df, category)
 
@@ -166,7 +166,7 @@ class CalendarUpdater:
     def _create_calendar(self, category):
         """Create calendar with proper metadata."""
         cal = Calendar()
-        cal.extra.append(f'X-WR-CALNAME:Mahmoodia-{category.title()}')
+        cal.extra.append(f'X-WR-CALNAME:{self.institution}-{category.title()}')
         cal.extra.append('REFRESH-INTERVAL;VALUE=DURATION:P1H')
         return cal
 
@@ -205,7 +205,7 @@ class CalendarUpdater:
         """Upload calendar files via FTP."""
         for category, ics_content in calendars.items():
             try:
-                filename = f'hifz_calendar_{category}.ics'
+                filename = f'{self.institution}-{category}.ics'
                 file_obj = io.BytesIO(ics_content.encode('utf-8'))
                 logger.info(f'Uploading {filename} via FTP')
                 ftp.storbinary(f'STOR {filename}', file_obj)
@@ -228,7 +228,7 @@ class CalendarUpdater:
 
         df = self.read_spreadsheet()
         if df is None:
-            logger.error('Failed to read Excel data, skipping update')
+            logger.error('Failed to read spreadsheet data, skipping update')
             return
 
         if not self._validate_dataframe(df):
@@ -251,41 +251,10 @@ class CalendarUpdater:
         return True
 
 
-def get_update_schedule():
-    """Get and validate update schedule from environment variables."""
-    update_schedule = os.getenv('CALENDAR_UPDATE_SCHEDULE_MINS')
-
-    try:
-        update_schedule = int(update_schedule)
-        if update_schedule <= 0:
-            raise ValueError('Schedule must be a positive integer')
-    except (ValueError, TypeError):
-        logger.warning(
-            f'Invalid CALENDAR_UPDATE_SCHEDULE_MINS value: {update_schedule}, '
-            'defaulting to 60 minutes'
-        )
-        update_schedule = 60
-
-    return update_schedule
-
-
 def main():
-    """Main function to run the calendar updater."""
-    update_schedule = get_update_schedule()
-
     try:
         updater = CalendarUpdater()
         updater.update_calendars()
-
-        schedule.every(update_schedule).minutes.do(updater.update_calendars)
-        logger.info(
-            f'Calendar updater started. Running every {update_schedule} minutes...'
-        )
-
-        while True:
-            schedule.run_pending()
-            time.sleep(300)
-
     except KeyboardInterrupt:
         logger.info('Calendar updater stopped by user')
     except Exception as error:

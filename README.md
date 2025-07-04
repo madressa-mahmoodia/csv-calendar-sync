@@ -1,29 +1,27 @@
 # Calendar Automation System
 
-Automated calendar system that reads events from OneDrive Excel and generates ICS files for subscription.
+Automated calendar system that reads events from spreadsheets and generates ICS files for subscription via iCAL.
 
 ## Features
 
-- Reads event data from OneDrive Excel spreadsheet
-- Generates separate ICS files for three calendars: Naazira, Hifz, Aalim
+- Reads event data from a spreadsheet
+- Generates separate ICS files for any given category (default is Events)
 - Supports events marked as "ALL" that appear in all calendars
 - Uploads ICS files via FTP to web server
-- Configurable update schedule
-- Comprehensive logging
+- Configurable update schedule via GitHub actions
 
 ## Environment Variables
 
 Set these environment variables in your deployment:
 
 ```
-- ONEDRIVE_RESID
-- ONEDRIVE_AUTHKEY
+- INSTITUTION
+- CALENDAR_CATEGORIES
 - FTP_HOST
 - FTP_PORT
 - FTP_USERNAME
 - FTP_PASSWORD
 - FTP_REMOTE_PATH=/path/to/calendar/directory
-- CALENDAR_UPDATE_SCHEDULE_MINS
 ```
 
 ## Excel File Format
@@ -31,7 +29,7 @@ Set these environment variables in your deployment:
 Your OneDrive Excel file should have these columns:
 
 - **Event Title** (required)
-- **Calendar** (required) - Values: "naazira", "hifz", "aalim", or "ALL"
+- **Calendar** (required) - Values: MUST MATCH CALENDAR_CATEGORIES ENV VAR
 - **Start Date** (required)
 - **Start Time** (optional - leave blank for all-day events)
 - **End Date** (optional)
@@ -41,8 +39,6 @@ Your OneDrive Excel file should have these columns:
 
 ## Generated Files
 
-The system creates three ICS files:
+The system creates ICS files named:
 
-- `hifz_calendar_naazira.ics` - Mahmoodia-Naazira calendar
-- `hifz_calendar_hifz.ics` - Mahmoodia-Hifz calendar
-- `hifz_calendar_aalim.ics` - Mahmoodia-Aalim calendar
+- `{$INSTITUTION}-{CALENDAR_CATEGORIES}.ics` - eg ExampleInstitution-Events.ics
