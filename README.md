@@ -23,6 +23,7 @@ Set these environment variables in your deployment:
 - FTP_USERNAME (required)
 - FTP_PASSWORD (required)
 - FTP_REMOTE_PATH=/path/to/calendar/directory (optional - default '/')
+- SPREADSHEET_URL (required - public URL to csv file)
 - DEBUG_LOCAL (optional)
 ```
 
