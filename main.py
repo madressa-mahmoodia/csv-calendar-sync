@@ -1,15 +1,18 @@
 import ftplib
+import hashlib
 import io
 import logging
 import os
-import random
-import time
+import uuid
+import validators
 from datetime import datetime, timedelta
 
 import pandas as pd
-from ics import Calendar, Event
-from ics.alarm import DisplayAlarm
+from icalendar import Calendar, Event, Alarm, vCalAddress
 
+if os.getenv("DEBUG_LOCAL"):
+    from dotenv import load_dotenv
+    load_dotenv()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -23,7 +26,8 @@ class CalendarUpdater:
 
     def __init__(self):
         """Initialize with environment variables."""
-        self.institution = os.getenv('INSTITUTION', 'ExampleInstitution')
+        self.organisation = os.getenv('ORGANISATION')
+        self.organiser = os.getenv('ORGANISER')
         self.categories = os.getenv('CALENDAR_CATEGORIES', 'Events').split(',')
 
         self.spreadsheet_url = os.getenv('SPREADSHEET_URL')
@@ -43,6 +47,15 @@ class CalendarUpdater:
                 'Spreadsheet URL not found in environment variables'
             )
 
+        if (
+            not self.organisation
+            or not self.organiser
+            or not validators.email(self.organiser)
+        ):
+            raise ValueError(
+                'Organisation or Organiser not set in environment variables'
+            )
+
         if not all([self.ftp_host, self.ftp_username, self.ftp_password]):
             raise ValueError(
                 'FTP credentials not found in environment variables'
@@ -51,7 +64,11 @@ class CalendarUpdater:
     def read_spreadsheet(self):
         """Read Spreadsheet file using public share link access method."""
         try:
-            logger.info('Reading spreadsheet file...')
+            if not validators.url(self.spreadsheet_url):
+                raise ValueError(
+                    f"Invalid spreadsheet URL: {self.spreadsheet_url}"
+                )
+            logger.info(f'Reading spreadsheet file from {self.spreadsheet_url[:40]}')
             df = pd.read_csv(self.spreadsheet_url)
             logger.info(f'Successfully read {len(df)} events from File')
             return df
@@ -60,25 +77,43 @@ class CalendarUpdater:
             return None
 
     def _create_calendar_event(self, row):
-        """Create an ICS event from a DataFrame row."""
+        # logger.info("Create an ICS event from a row.")
         event = Event()
-        event.name = str(row.get('Event Title', 'Untitled Event'))
+        self._set_event_organiser(event)
+        event.add('summary', str(row.get('Event Title', 'Untitled Event')))
 
         if pd.notna(row.get('Description')):
-            event.description = str(row.get('Description'))
+            description = (
+                str(row.get('Description', ''))
+                .replace('\r\n', '\\n')
+                .replace('\n', '\\n')
+            )
+            event.add('description', description)
 
         if pd.notna(row.get('Location')):
-            event.location = str(row.get('Location'))
+            event.add('location', str(row.get('Location')))
+
+        if pd.notna(row.get('URL')):
+            url = row.get('URL')
+            if url and validators.url(url):
+                event.add('url', url)
+            else:
+                logger.warning(f"Invalid URL skipped: {url}")
 
         self._set_event_datetime(event, row)
         self._add_event_alarm(event)
-        self._set_event_uid(event)
+        self._set_event_uid(event, row)
 
-        event.dtstamp = datetime.now()
+        event.add('dtstamp', datetime.now())
         return event
 
+    def _set_event_organiser(self, event):
+        organiser = vCalAddress(f'MAILTO:{self.organiser}')
+        organiser.name = self.organisation
+        event.add('organizer', organiser)
+
     def _set_event_datetime(self, event, row):
-        """Set event start and end datetime."""
+        # logger.info("Set event start and end datetime.")
         start_date = row.get('Start Date')
         start_time = row.get('Start Time')
         end_date = row.get('End Date', start_date)
@@ -92,18 +127,24 @@ class CalendarUpdater:
                                       end_date, end_time)
         except Exception as error:
             logger.warning(
-                f"Error parsing dates for event '{event.name}': {error}"
+                (
+                    f"Error parsing dates for event "
+                    f"'{event.get('summary', 'Unknown')}': {error}"
+                )
             )
             self._set_default_event_time(event)
 
     def _set_all_day_event(self, event, start_date, end_date):
-        """Set all-day event dates."""
-        event.begin = pd.to_datetime(start_date).date()
+        event['dtstart'] = pd.to_datetime(start_date).date()
         if pd.notna(end_date):
-            event.end = pd.to_datetime(end_date).date() + timedelta(days=1)
+            event['dtend'] = (
+                pd.to_datetime(end_date).date() + timedelta(days=1)
+            )
         else:
-            event.end = pd.to_datetime(start_date).date() + timedelta(days=1)
-        event.make_all_day()
+            event['dtend'] = (
+                pd.to_datetime(start_date).date() + timedelta(days=1)
+            )
+        event['X-MICROSOFT-CDO-ALLDAYEVENT'] = 'TRUE'
 
     def _set_timed_event(self, event, start_date, start_time,
                          end_date, end_time):
@@ -114,27 +155,43 @@ class CalendarUpdater:
         else:
             end_datetime = start_datetime + timedelta(hours=2)
 
-        event.begin = start_datetime
-        event.end = end_datetime
+        event['dtstart'] = start_datetime
+        event['dtend'] = end_datetime
 
     def _set_default_event_time(self, event):
         """Set default event time if parsing fails."""
-        event.begin = datetime.now().date()
-        event.end = datetime.now().date() + timedelta(days=1)
-        event.make_all_day()
+        event['dtstart'] = datetime.now().date()
+        event['dtend'] = datetime.now().date() + timedelta(days=1)
+        event['X-MICROSOFT-CDO-ALLDAYEVENT'] = 'TRUE'
 
     def _add_event_alarm(self, event):
-        """Add alarm to event (1 day before)."""
-        alarm = DisplayAlarm()
-        alarm.trigger = timedelta(days=-1)
-        alarm.description = event.name
-        event.alarms.add(alarm)
+        alarm = Alarm()
+        alarm.add('action', 'DISPLAY')
+        alarm.add('description', event.get('summary', ''))
+        alarm.add('trigger', timedelta(days=-1))
+        event.add_component(alarm)
 
-    def _set_event_uid(self, event):
-        """Generate and set unique event UID."""
-        timestamp = int(time.time() * 1000)
-        random_num = random.randint(1000000, 9999999)
-        event.uid = f'{timestamp}-{random_num}@ical.marudot.com'
+    def _set_event_uid(self, event, row):
+        uid_components = [
+            str(row.get('Event Title', '')),
+            str(row.get('Start Date', '')),
+            str(row.get('Start Time', '')),
+            str(row.get('End Date', '')),
+            str(row.get('End Time', '')),
+            str(row.get('Calendar', '')),
+            str(row.get('Location', '')),
+            str(row.get('Description', ''))
+        ]
+
+        uid_string = '|'.join(uid_components)
+        uid_hash = hashlib.sha256(uid_string.encode('utf-8')).hexdigest()
+
+        uid = (
+            f"{uid_hash[:8]}-{uid_hash[8:12]}-{uid_hash[12:16]}-"
+            f"{uid_hash[16:20]}-{uid_hash[20:32]}"
+        )
+
+        event.add('uid', f"{uid}@{self.organiser.lower()}")
 
     def generate_ics_files(self, df):
         """Generate separate ICS files for each calendar category."""
@@ -151,8 +208,7 @@ class CalendarUpdater:
             cal = self._create_calendar(category)
             self._add_events_to_calendar(cal, calendar_events)
 
-            calendars[category] = str(cal)
-            logger.info(f'Generated {len(cal.events)} events for {category}')
+            calendars[category] = cal
 
         return calendars
 
@@ -164,21 +220,37 @@ class CalendarUpdater:
         ]
 
     def _create_calendar(self, category):
-        """Create calendar with proper metadata."""
+        # logger.info("Create calendar with proper metadata.")
         cal = Calendar()
-        cal.extra.append(f'X-WR-CALNAME:{self.institution}-{category.title()}')
-        cal.extra.append('REFRESH-INTERVAL;VALUE=DURATION:P1H')
+        cal.uid = str(uuid.uuid4())
+        cal.add('prodid', f'-//{self.organisation}//EN')
+        cal.add('version', '2.0')
+        cal.add('X-WR-CALNAME', f'{self.organisation} - {category.title()}')
+        cal.add('REFRESH-INTERVAL;VALUE=DURATION', 'P1H')
         return cal
 
     def _add_events_to_calendar(self, cal, calendar_events):
-        """Add events to calendar."""
         for _, row in calendar_events.iterrows():
             if pd.notna(row.get('Event Title')):
                 event = self._create_calendar_event(row)
-                cal.events.add(event)
+                cal.add_component(event)
+
+        logger.info(f"Processed {len(cal.events)} events")
 
     def upload_ics_files(self, calendars):
         """Upload ICS files to FTP server."""
+        if os.getenv('DEBUG_LOCAL'):
+            logger.info('Skipping FTP upload in local debug mode')
+            for category, cal in calendars.items():
+                filename = (
+                    f"{self.organisation.lower().replace(' ', '-')}-"
+                    f"{category.lower().replace(' ', '-')}.ics"
+                )
+                with open(filename, 'wb') as f:
+                    f.write(cal.to_ical())
+                logger.info(f'Local file created: {filename}')
+            return
+
         ftp = None
 
         try:
@@ -195,19 +267,21 @@ class CalendarUpdater:
         ftp = ftplib.FTP()
         ftp.connect(self.ftp_host, self.ftp_port)
         ftp.login(self.ftp_username, self.ftp_password)
-
-        if self.ftp_remote_path != '/':
-            ftp.cwd(self.ftp_remote_path)
-
+        ftp.cwd(self.ftp_remote_path)
         return ftp
 
     def _upload_files_to_ftp(self, ftp, calendars):
         """Upload calendar files via FTP."""
-        for category, ics_content in calendars.items():
+        for category, cal in calendars.items():
             try:
-                filename = f'{self.institution}-{category}.ics'
-                file_obj = io.BytesIO(ics_content.encode('utf-8'))
-                logger.info(f'Uploading {filename} via FTP')
+                filename = (
+                    f"{self.organisation.lower().replace(' ', '-')}-"
+                    f"{category.lower().replace(' ', '-')}.ics"
+                )
+                logger.info(f'Preparing to upload {filename}')
+                ics_content = cal.to_ical()
+                file_obj = io.BytesIO(ics_content)
+                file_obj.seek(0)
                 ftp.storbinary(f'STOR {filename}', file_obj)
                 logger.info(f'Successfully uploaded {filename}')
             except Exception as error:

@@ -2,7 +2,7 @@ name: run main.py
 
 on:
   schedule:
-    - cron: "*/30 * * * *" # Run every 30 minutes
+    - cron: "0 */1 * * *" # Run every hour
   workflow_dispatch:
 
 jobs:
@@ -23,24 +23,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: debug secrets
-        run: |
-          echo "INSTITUTION: ${{ secrets.INSTITUTION }}"
-          echo "CALENDAR_CATEGORIES: ${{ secrets.CALENDAR_CATEGORIES }}"
-          echo "FTP_HOST: ${{ secrets.FTP_HOST }}"
-          echo "FTP_PORT: ${{ secrets.FTP_PORT }}"
-          echo "FTP_USERNAME: ${{ secrets.FTP_USERNAME }}"
-          echo "FTP_REMOTE_PATH: ${{ secrets.FTP_REMOTE_PATH }}"
-          echo "SPREADSHEET_URL: ${{ secrets.SPREADSHEET_URL }}"
-
       - name: Run main.py
-        env:
-          INSTITUTION: ${{ secrets.INSTITUTION }} # Name of the institution
-          CALENDAR_CATEGORIES: ${{ secrets.CALENDAR_CATEGORIES }} # Comma-separated list of calendar categories
-          FTP_HOST: ${{ secrets.FTP_HOST }} # FTP server host
-          FTP_PORT: ${{ secrets.FTP_PORT }} # FTP server port (default is 21)
-          FTP_USERNAME: ${{ secrets.FTP_USERNAME }} # FTP username
-          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }} # FTP password
-          FTP_REMOTE_PATH: ${{ secrets.FTP_REMOTE_PATH }} # Remote path on the FTP server where files will be uploaded
-          SPREADSHEET_URL: ${{ secrets.SPREADSHEET_URL }}
         run: python main.py
+        env:
+          ORGANISATION: ${{ Secrets.ORGANISATION }}
+          ORGANISER: ${{ Secrets.ORGANISER }}
+          CALENDAR_CATEGORIES: ${{ Secrets.CALENDAR_CATEGORIES }}
+          FTP_HOST: ${{ Secrets.FTP_HOST }}
+          FTP_PORT: ${{ Secrets.FTP_PORT }}
+          FTP_USERNAME: ${{ Secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ Secrets.FTP_PASSWORD }}
+          FTP_REMOTE_PATH: ${{ Secrets.FTP_REMOTE_PATH }}
+          SPREADSHEET_URL: ${{ Secrets.SPREADSHEET_URL }}

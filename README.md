@@ -15,18 +15,20 @@ Automated calendar system that reads events from spreadsheets and generates ICS 
 Set these environment variables in your deployment:
 
 ```
-- INSTITUTION
-- CALENDAR_CATEGORIES
-- FTP_HOST
-- FTP_PORT
-- FTP_USERNAME
-- FTP_PASSWORD
-- FTP_REMOTE_PATH=/path/to/calendar/directory
+- ORGANISATION (required)
+- ORGANISER (required valid email address)
+- CALENDAR_CATEGORIES (required comma separated list)
+- FTP_HOST (required)
+- FTP_PORT (optional - default 21)
+- FTP_USERNAME (required)
+- FTP_PASSWORD (required)
+- FTP_REMOTE_PATH=/path/to/calendar/directory (optional - default '/')
+- DEBUG_LOCAL (optional)
 ```
 
-## Excel File Format
+## CSV File structure
 
-Your OneDrive Excel file should have these columns:
+Your csv file should have these columns:
 
 - **Event Title** (required)
 - **Calendar** (required) - Values: MUST MATCH CALENDAR_CATEGORIES ENV VAR
@@ -35,6 +37,7 @@ Your OneDrive Excel file should have these columns:
 - **End Date** (optional)
 - **End Time** (optional)
 - **Description** (optional)
+- **URL** (optional)
 - **Location** (optional)
 
 ## Generated Files
