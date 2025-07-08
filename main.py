@@ -73,6 +73,12 @@ class CalendarUpdater:
                              parse_dates=['Start Date', 'End Date'],
                              date_format="%d/%m/%Y")
             logger.info(f'Successfully read {len(df)} events from File')
+            df.replace("", pd.NA, inplace=True)
+            df.dropna(how='all', axis=1, inplace=True)
+            logger.info(
+                'Removed empty columns, remaining columns: '
+                f'{df.columns.tolist()}'
+            )
             return df
         except Exception as error:
             logger.error(f'Error reading spreadsheet file: {error}')
