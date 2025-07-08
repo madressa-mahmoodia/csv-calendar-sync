@@ -178,11 +178,7 @@ class CalendarUpdater:
             str(row.get('Event Title', '')),
             str(row.get('Start Date', '')),
             str(row.get('Start Time', '')),
-            str(row.get('End Date', '')),
-            str(row.get('End Time', '')),
-            str(row.get('Calendar', '')),
-            str(row.get('Location', '')),
-            str(row.get('Description', ''))
+            str(row.get('Calendar', ''))
         ]
 
         uid_string = '|'.join(uid_components)
@@ -193,7 +189,8 @@ class CalendarUpdater:
             f"{uid_hash[16:20]}-{uid_hash[20:32]}"
         )
 
-        event.add('uid', f"{uid}@{self.organiser.lower()}")
+        event.add('uid', f"{uid}@{self.ftp_host[4:].lower()}")
+        # logger.info(f"Event UID set: {event.get('uid')}")
 
     def generate_ics_files(self, df):
         """Generate separate ICS files for each calendar category."""
@@ -228,6 +225,7 @@ class CalendarUpdater:
         cal.add('prodid', f'-//{self.organisation}//EN')
         cal.add('version', '2.0')
         cal.add('X-WR-CALNAME', f'{self.organisation} - {category.title()}')
+        cal.add('NAME', f'{self.organisation} - {category.title()}')
         cal.add('REFRESH-INTERVAL;VALUE=DURATION', 'P1H')
         return cal
 
@@ -265,7 +263,7 @@ class CalendarUpdater:
 
     def _connect_to_ftp(self):
         """Establish FTP connection."""
-        logger.info(f'Connecting to FTP server: {self.ftp_host}:{self.ftp_port}')
+        logger.info('Connecting to FTP server as defined in .env')
         ftp = ftplib.FTP()
         ftp.connect(self.ftp_host, self.ftp_port)
         ftp.login(self.ftp_username, self.ftp_password)
