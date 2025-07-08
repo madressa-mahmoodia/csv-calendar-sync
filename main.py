@@ -69,7 +69,7 @@ class CalendarUpdater:
                     f"Invalid spreadsheet URL: {self.spreadsheet_url}"
                 )
             logger.info(f'Reading spreadsheet file from {self.spreadsheet_url[:40]}')
-            df = pd.read_csv(self.spreadsheet_url)
+            df = pd.read_csv(self.spreadsheet_url, date_format="%d/%m/%Y")
             logger.info(f'Successfully read {len(df)} events from File')
             return df
         except Exception as error:
