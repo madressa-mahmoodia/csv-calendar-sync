@@ -3,9 +3,8 @@ import hashlib
 import io
 import logging
 import os
-import uuid
 import validators
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 from icalendar import Calendar, Event, Alarm, vCalAddress
@@ -66,9 +65,11 @@ class CalendarUpdater:
         try:
             if not validators.url(self.spreadsheet_url):
                 raise ValueError(
-                    f"Invalid spreadsheet URL: {self.spreadsheet_url}"
+                    f"Invalid spreadsheet URL: {self.spreadsheet_url[:50]}"
                 )
-            logger.info(f'Reading spreadsheet file from {self.spreadsheet_url[:40]}')
+            logger.info(
+                f'Reading spreadsheet file from {self.spreadsheet_url[:50]}'
+                )
             df = pd.read_csv(self.spreadsheet_url,
                              parse_dates=['Start Date', 'End Date'],
                              date_format="%d/%m/%Y")
@@ -111,8 +112,14 @@ class CalendarUpdater:
         self._set_event_datetime(event, row)
         self._add_event_alarm(event)
         self._set_event_uid(event, row)
+        self._set_event_dtstamp(event, row)
 
-        event.add('dtstamp', datetime.now())
+        if pd.notna(row.get('Date Modified')):
+            modified_date = pd.to_datetime(row.get('Date Modified'))
+        else:
+            modified_date = datetime.now(timezone.utc)
+        event.add('LAST-MODIFIED', modified_date)
+
         return event
 
     def _set_event_organiser(self, event):
@@ -179,15 +186,34 @@ class CalendarUpdater:
         alarm.add('trigger', timedelta(days=-1))
         event.add_component(alarm)
 
+    def _set_event_dtstamp(self, event, row):
+        start_date = row.get('Start Date')
+        date_created = row.get('Date Created')
+        if pd.notna(date_created):
+            dtstamp = pd.to_datetime(date_created)
+        elif pd.notna(start_date):
+            dtstamp = pd.to_datetime(start_date).replace(
+                hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc
+            )
+        else:
+            dtstamp = datetime.now(timezone.utc)
+
+        event.add('dtstamp', dtstamp)
+
     def _set_event_uid(self, event, row):
         uid_components = [
-            str(row.get('Event Title', '')),
-            str(row.get('Start Date', '')),
-            str(row.get('Start Time', '')),
-            str(row.get('Calendar', ''))
+            row.get('Event Title', ''),
+            row.get('Start Date', ''),
+            row.get('Start Time', ''),
+            row.get('Calendar', '')
         ]
 
-        uid_string = '|'.join(uid_components)
+        uid = self._generate_deterministic_uid(uid_components)
+        event.add('uid', uid)
+        # logger.info(f"Event UID set: {event.get('uid')}")
+
+    def _generate_deterministic_uid(self, components):
+        uid_string = '|'.join(str(component) for component in components)
         uid_hash = hashlib.sha256(uid_string.encode('utf-8')).hexdigest()
 
         uid = (
@@ -195,8 +221,7 @@ class CalendarUpdater:
             f"{uid_hash[16:20]}-{uid_hash[20:32]}"
         )
 
-        event.add('uid', f"{uid}@{self.ftp_host[4:].lower()}")
-        # logger.info(f"Event UID set: {event.get('uid')}")
+        return f"{uid}@{self.ftp_host[4:].lower()}"
 
     def generate_ics_files(self, df):
         """Generate separate ICS files for each calendar category."""
@@ -234,13 +259,22 @@ class CalendarUpdater:
     def _create_calendar(self, category):
         # logger.info("Create calendar with proper metadata.")
         cal = Calendar()
-        cal.uid = str(uuid.uuid4())
+        cal.uid = self._set_calendar_uid(category.title())
         cal.add('prodid', f'-//{self.organisation}//EN')
         cal.add('version', '2.0')
         cal.add('X-WR-CALNAME', f'{self.organisation} - {category.title()}')
         cal.add('NAME', f'{self.organisation} - {category.title()}')
+        cal.add('LAST-MODIFIED', datetime.now())
         cal.add('REFRESH-INTERVAL;VALUE=DURATION', 'P1H')
         return cal
+
+    def _set_calendar_uid(self, category):
+        uid_components = [
+            self.organisation.lower().strip(),
+            category.lower().strip()
+        ]
+
+        return self._generate_deterministic_uid(uid_components)
 
     def _add_events_to_calendar(self, cal, calendar_events):
         for _, row in calendar_events.iterrows():
