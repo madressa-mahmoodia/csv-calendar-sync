@@ -219,10 +219,17 @@ class CalendarUpdater:
 
     def _filter_events_by_category(self, df, category):
         """Filter events for specific category or ALL."""
-        return df[
-            (df['Calendar'].str.lower() == category.lower()) |
-            (df['Calendar'].str.upper() == 'ALL')
-        ]
+
+        def category_matches(cell):
+            if pd.isna(cell):
+                return False
+            categories = [c.strip().lower() for c in str(cell).split(',')]
+            return (
+                category.lower() in categories
+                or 'all' in [c.lower() for c in categories]
+            )
+
+        return df[df['Calendar'].apply(category_matches)]
 
     def _create_calendar(self, category):
         # logger.info("Create calendar with proper metadata.")
