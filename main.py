@@ -150,28 +150,38 @@ class CalendarUpdater:
             self._set_default_event_time(event)
 
     def _set_all_day_event(self, event, start_date, end_date):
-        event['dtstart'] = pd.to_datetime(start_date).date()
+        start_date_obj = pd.to_datetime(start_date).date()
+
         if pd.notna(end_date):
-            event['dtend'] = (
-                pd.to_datetime(end_date).date() + timedelta(days=1)
-            )
+            end_date_obj = pd.to_datetime(end_date).date() + timedelta(days=1)
         else:
-            event['dtend'] = (
-                pd.to_datetime(start_date).date() + timedelta(days=1)
-            )
+            end_date_obj = start_date_obj + timedelta(days=1)
+
+        # Use VALUE=DATE parameter for all-day events
+        event.add('dtstart', start_date_obj)
+        event.add('dtend', end_date_obj)
+        event['dtstart'].params['VALUE'] = 'DATE'
+        event['dtend'].params['VALUE'] = 'DATE'
         event['X-MICROSOFT-CDO-ALLDAYEVENT'] = 'TRUE'
 
-    def _set_timed_event(self, event, start_date, start_time,
+    def _set_timed_event(self, event,
+                         start_date, start_time,
                          end_date, end_time):
-        """Set timed event dates."""
-        start_datetime = pd.to_datetime(f'{start_date} {start_time}')
+        start_datetime = (
+            pd.to_datetime(f'{start_date} {start_time}')
+            .tz_localize(tz=timezone.utc)
+        )
+
         if pd.notna(end_time) and pd.notna(end_date):
-            end_datetime = pd.to_datetime(f'{end_date} {end_time}')
+            end_datetime = (
+                pd.to_datetime(f'{end_date} {end_time}')
+                .tz_localize(tz=timezone.utc)
+            )
         else:
             end_datetime = start_datetime + timedelta(hours=2)
 
-        event['dtstart'] = start_datetime
-        event['dtend'] = end_datetime
+        event.add('dtstart', start_datetime)
+        event.add('dtend', end_datetime)
 
     def _set_default_event_time(self, event):
         """Set default event time if parsing fails."""
@@ -190,7 +200,9 @@ class CalendarUpdater:
         start_date = row.get('Start Date')
         date_created = row.get('Date Created')
         if pd.notna(date_created):
-            dtstamp = pd.to_datetime(date_created)
+            dtstamp = pd.to_datetime(date_created).replace(
+                hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc
+            )
         elif pd.notna(start_date):
             dtstamp = pd.to_datetime(start_date).replace(
                 hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc
