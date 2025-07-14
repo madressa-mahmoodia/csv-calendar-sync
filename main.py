@@ -5,6 +5,7 @@ import logging
 import os
 import validators
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 from icalendar import Calendar, Event, Alarm, vCalAddress
@@ -30,6 +31,9 @@ class CalendarUpdater:
         self.categories = os.getenv('CALENDAR_CATEGORIES', 'Events').split(',')
 
         self.spreadsheet_url = os.getenv('SPREADSHEET_URL')
+
+        self.timezone_str = os.getenv('TIMEZONE', 'UTC')
+        self.timezone = ZoneInfo(self.timezone_str)
 
         self.ftp_host = os.getenv('FTP_HOST')
         self.ftp_port = int(os.getenv('FTP_PORT', '21'))
@@ -169,13 +173,13 @@ class CalendarUpdater:
                          end_date, end_time):
         start_datetime = (
             pd.to_datetime(f'{start_date} {start_time}')
-            .tz_localize(tz=timezone.utc)
+            .tz_localize(tz=self.timezone)
         )
 
         if pd.notna(end_time) and pd.notna(end_date):
             end_datetime = (
                 pd.to_datetime(f'{end_date} {end_time}')
-                .tz_localize(tz=timezone.utc)
+                .tz_localize(tz=self.timezone)
             )
         else:
             end_datetime = start_datetime + timedelta(hours=2)
@@ -185,8 +189,13 @@ class CalendarUpdater:
 
     def _set_default_event_time(self, event):
         """Set default event time if parsing fails."""
-        event['dtstart'] = datetime.now().date()
-        event['dtend'] = datetime.now().date() + timedelta(days=1)
+        event.add('dtstart', datetime.now(self.timezone).date())
+        event.add(
+            'dtend',
+            datetime.now(self.timezone).date() + timedelta(days=1)
+        )
+        event['dtstart'].params['VALUE'] = 'DATE'
+        event['dtend'].params['VALUE'] = 'DATE'
         event['X-MICROSOFT-CDO-ALLDAYEVENT'] = 'TRUE'
 
     def _add_event_alarm(self, event):
@@ -201,14 +210,14 @@ class CalendarUpdater:
         date_created = row.get('Date Created')
         if pd.notna(date_created):
             dtstamp = pd.to_datetime(date_created).replace(
-                hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc
+                hour=0, minute=0, second=0, microsecond=0, tzinfo=self.timezone
             )
         elif pd.notna(start_date):
             dtstamp = pd.to_datetime(start_date).replace(
-                hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc
+                hour=0, minute=0, second=0, microsecond=0, tzinfo=self.timezone
             )
         else:
-            dtstamp = datetime.now(timezone.utc)
+            dtstamp = datetime.now(self.timezone)
 
         event.add('dtstamp', dtstamp)
 
@@ -249,6 +258,7 @@ class CalendarUpdater:
 
             cal = self._create_calendar(category)
             self._add_events_to_calendar(cal, calendar_events)
+            cal.add_missing_timezones()
 
             calendars[category] = cal
 
@@ -276,8 +286,9 @@ class CalendarUpdater:
         cal.add('version', '2.0')
         cal.add('X-WR-CALNAME', f'{self.organisation} - {category.title()}')
         cal.add('NAME', f'{self.organisation} - {category.title()}')
-        cal.add('LAST-MODIFIED', datetime.now())
+        cal.add('LAST-MODIFIED', datetime.now(self.timezone))
         cal.add('REFRESH-INTERVAL;VALUE=DURATION', 'P1H')
+        cal.add('X-WR-TIMEZONE', self.timezone_str)
         return cal
 
     def _set_calendar_uid(self, category):

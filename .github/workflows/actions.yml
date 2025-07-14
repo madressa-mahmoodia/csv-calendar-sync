@@ -35,3 +35,4 @@ jobs:
           FTP_PASSWORD: ${{ Secrets.FTP_PASSWORD }}
           FTP_REMOTE_PATH: ${{ Secrets.FTP_REMOTE_PATH }}
           SPREADSHEET_URL: ${{ Secrets.SPREADSHEET_URL }}
+          TIMEZONE: ${{ Secrets.TIMEZONE }}
