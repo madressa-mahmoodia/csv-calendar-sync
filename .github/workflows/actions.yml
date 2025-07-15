@@ -28,9 +28,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run main.py
-        run: |
-          set -e
-          python main.py
+        run: python main.py
         env:
           ORGANISATION: ${{ secrets.ORGANISATION }}
           ORGANISER: ${{ secrets.ORGANISER }}

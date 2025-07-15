@@ -415,5 +415,4 @@ def main():
 
 
 if __name__ == '__main__':
-    raise Exception("Test error - this should fail the build")
     main()
