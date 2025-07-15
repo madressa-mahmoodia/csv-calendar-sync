@@ -20,6 +20,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
 
       - name: Install dependencies
         run: |
@@ -29,13 +30,13 @@ jobs:
       - name: Run main.py
         run: python main.py
         env:
-          ORGANISATION: ${{ Secrets.ORGANISATION }}
-          ORGANISER: ${{ Secrets.ORGANISER }}
-          CALENDAR_CATEGORIES: ${{ Secrets.CALENDAR_CATEGORIES }}
-          FTP_HOST: ${{ Secrets.FTP_HOST }}
-          FTP_PORT: ${{ Secrets.FTP_PORT }}
-          FTP_USERNAME: ${{ Secrets.FTP_USERNAME }}
-          FTP_PASSWORD: ${{ Secrets.FTP_PASSWORD }}
-          FTP_REMOTE_PATH: ${{ Secrets.FTP_REMOTE_PATH }}
-          SPREADSHEET_URL: ${{ Secrets.SPREADSHEET_URL }}
-          TIMEZONE: ${{ Secrets.TIMEZONE }}
+          ORGANISATION: ${{ secrets.ORGANISATION }}
+          ORGANISER: ${{ secrets.ORGANISER }}
+          CALENDAR_CATEGORIES: ${{ secrets.CALENDAR_CATEGORIES }}
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_PORT: ${{ secrets.FTP_PORT }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_REMOTE_PATH: ${{ secrets.FTP_REMOTE_PATH }}
+          SPREADSHEET_URL: ${{ secrets.SPREADSHEET_URL }}
+          TIMEZONE: ${{ secrets.TIMEZONE }}
