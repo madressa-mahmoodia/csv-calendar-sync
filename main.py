@@ -209,15 +209,21 @@ class CalendarUpdater:
         start_date = row.get('Start Date')
         date_created = row.get('Date Created')
         if pd.notna(date_created):
-            dtstamp = pd.to_datetime(date_created).replace(
-                hour=0, minute=0, second=0, microsecond=0, tzinfo=self.timezone
+            dtstamp = (
+                pd.to_datetime(date_created)
+                .replace(hour=0, minute=0, second=0, microsecond=0)
+                .tz_localize(self.timezone)
+                .astimezone(timezone.utc)
             )
         elif pd.notna(start_date):
-            dtstamp = pd.to_datetime(start_date).replace(
-                hour=0, minute=0, second=0, microsecond=0, tzinfo=self.timezone
+            dtstamp = (
+                pd.to_datetime(start_date)
+                .replace(hour=0, minute=0, second=0, microsecond=0)
+                .tz_localize(self.timezone)
+                .astimezone(timezone.utc)
             )
         else:
-            dtstamp = datetime.now(self.timezone)
+            dtstamp = datetime.now(timezone.utc)
 
         event.add('dtstamp', dtstamp)
 
