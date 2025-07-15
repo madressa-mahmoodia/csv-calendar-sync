@@ -3,12 +3,14 @@ import hashlib
 import io
 import logging
 import os
-import validators
+import sys
+
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-from icalendar import Calendar, Event, Alarm, vCalAddress
+import validators
+from icalendar import Alarm, Calendar, Event, vCalAddress
 
 if os.getenv("DEBUG_LOCAL"):
     from dotenv import load_dotenv
@@ -409,6 +411,7 @@ def main():
         logger.info('Calendar updater stopped by user')
     except Exception as error:
         logger.error(f'Fatal error: {error}')
+        sys.exit(1)
 
 
 if __name__ == '__main__':
