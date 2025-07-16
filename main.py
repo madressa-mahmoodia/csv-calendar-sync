@@ -121,7 +121,11 @@ class CalendarUpdater:
         self._set_event_dtstamp(event, row)
 
         if pd.notna(row.get('Date Modified')):
-            modified_date = pd.to_datetime(row.get('Date Modified'))
+            modified_date = (
+                pd.to_datetime(row.get('Date Modified'))
+                .tz_localize(self.timezone)
+                .astimezone(timezone.utc)
+            )
         else:
             modified_date = datetime.now(timezone.utc)
         event.add('LAST-MODIFIED', modified_date)
@@ -234,7 +238,10 @@ class CalendarUpdater:
             row.get('Event Title', ''),
             row.get('Start Date', ''),
             row.get('Start Time', ''),
-            row.get('Calendar', '')
+            row.get('End Date', ''),
+            row.get('End Time', ''),
+            row.get('Calendar', ''),
+            self.timezone_str
         ]
 
         uid = self._generate_deterministic_uid(uid_components)
