@@ -33,6 +33,7 @@ jobs:
           ORGANISATION: ${{ secrets.ORGANISATION }}
           ORGANISER: ${{ secrets.ORGANISER }}
           CALENDAR_CATEGORIES: ${{ secrets.CALENDAR_CATEGORIES }}
+          FILE_PREFIX: ${{ secrets.FILE_PREFIX }}
           FTP_HOST: ${{ secrets.FTP_HOST }}
           FTP_PORT: ${{ secrets.FTP_PORT }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}

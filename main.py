@@ -32,6 +32,11 @@ class CalendarUpdater:
         self.organiser = os.getenv('ORGANISER')
         self.categories = os.getenv('CALENDAR_CATEGORIES', 'Events').split(',')
 
+        # Optional override for the ICS filename stem. Subscribers' calendars
+        # are bound to a fixed URL, so the generated filename MUST match what
+        # they subscribed to. Defaults to a slug of ORGANISATION.
+        self.file_prefix = os.getenv('FILE_PREFIX')
+
         self.spreadsheet_url = os.getenv('SPREADSHEET_URL')
 
         self.timezone_str = os.getenv('TIMEZONE', 'UTC')
@@ -322,15 +327,17 @@ class CalendarUpdater:
 
         logger.info(f"Processed {len(cal.events)} events")
 
+    def _ics_filename(self, category):
+        """Build the ICS filename. Uses FILE_PREFIX if set, else org slug."""
+        prefix = self.file_prefix or self.organisation.lower().replace(' ', '-')
+        return f"{prefix}-{category.lower().replace(' ', '-')}.ics"
+
     def upload_ics_files(self, calendars):
         """Upload ICS files to FTP server."""
         if os.getenv('DEBUG_LOCAL'):
             logger.info('Skipping FTP upload in local debug mode')
             for category, cal in calendars.items():
-                filename = (
-                    f"{self.organisation.lower().replace(' ', '-')}-"
-                    f"{category.lower().replace(' ', '-')}.ics"
-                )
+                filename = self._ics_filename(category)
                 with open(filename, 'wb') as f:
                     f.write(cal.to_ical())
                 logger.info(f'Local file created: {filename}')
@@ -364,10 +371,7 @@ class CalendarUpdater:
         failures = []
         for category, cal in calendars.items():
             try:
-                filename = (
-                    f"{self.organisation.lower().replace(' ', '-')}-"
-                    f"{category.lower().replace(' ', '-')}.ics"
-                )
+                filename = self._ics_filename(category)
                 logger.info(f'Preparing to upload {filename}')
                 ics_content = cal.to_ical()
                 file_obj = io.BytesIO(ics_content)
