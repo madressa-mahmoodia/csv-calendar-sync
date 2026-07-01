@@ -343,6 +343,10 @@ class CalendarUpdater:
             self._upload_files_to_ftp(ftp, calendars)
         except Exception as error:
             logger.error(f'FTP connection error: {error}')
+            # Re-raise so the process exits non-zero. Previously this was
+            # swallowed, so FTP auth/upload failures (e.g. rotated password)
+            # left the Action green while the calendar feeds silently died.
+            raise
         finally:
             self._close_ftp_connection(ftp)
 
@@ -357,6 +361,7 @@ class CalendarUpdater:
 
     def _upload_files_to_ftp(self, ftp, calendars):
         """Upload calendar files via FTP."""
+        failures = []
         for category, cal in calendars.items():
             try:
                 filename = (
@@ -371,6 +376,15 @@ class CalendarUpdater:
                 logger.info(f'Successfully uploaded {filename}')
             except Exception as error:
                 logger.error(f'Error uploading {category}: {error}')
+                failures.append(category)
+
+        # Fail the run if any file did not upload, so breakage is visible
+        # instead of the Action reporting success with stale/missing feeds.
+        if failures:
+            raise RuntimeError(
+                f'Failed to upload {len(failures)} calendar(s): '
+                f"{', '.join(failures)}"
+            )
 
     def _close_ftp_connection(self, ftp):
         """Close FTP connection safely."""
