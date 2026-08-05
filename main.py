@@ -307,7 +307,11 @@ class CalendarUpdater:
         cal.add('X-WR-CALNAME', f'{self.organisation} - {category.title()}')
         cal.add('NAME', f'{self.organisation} - {category.title()}')
         cal.add('LAST-MODIFIED', datetime.now(self.timezone))
-        cal.add('REFRESH-INTERVAL;VALUE=DURATION', 'P1H')
+        # RFC 5545 durations need a T before time components: PT1H, not P1H.
+        # 'P1H' is invalid and strict parsers reject the WHOLE calendar,
+        # which showed up as subscribers getting an empty calendar.
+        cal.add('REFRESH-INTERVAL;VALUE=DURATION', 'PT1H')
+        cal.add('X-PUBLISHED-TTL', 'PT1H')
         cal.add('X-WR-TIMEZONE', self.timezone_str)
         return cal
 
