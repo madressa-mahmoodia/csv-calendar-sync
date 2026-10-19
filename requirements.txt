@@ -4,4 +4,4 @@ pandas==2.3.3
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.4
 requests==2.34.2
-validators==0.35.0
+validators==0.36.0
